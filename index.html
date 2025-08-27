@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CPR Assistant TH — Form Integrated (Canva Ready)</title>
+  <!-- Tailwind CDN (for Canva embed simplicity) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body{font-family: system-ui, -apple-system, 'Noto Sans Thai', 'Noto Sans', 'Segoe UI', Roboto, Arial}
+    .btn{ @apply rounded-xl px-4 py-2 font-semibold shadow-sm }
+    .btn-primary{ @apply bg-pink-500 text-white }
+    .btn-ghost{ @apply bg-white border border-gray-200 text-gray-700 }
+    .btn-warn{ @apply bg-red-500 text-white }
+    .pill{ @apply inline-block rounded-full border border-gray-200 bg-white px-3 py-1 text-sm }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .bigtime{ font-size: 40px; font-weight: 800; }
+    .grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:1rem }
+    @media(max-width: 1024px){ .grid-2{ grid-template-columns: 1fr } }
+  </style>
+  <!-- pdf-lib for PDF generation/merge -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+</head>
+<body class="bg-pink-50">
+  <div class="max-w-6xl mx-auto p-4 lg:p-6">
+    <div class="bg-white rounded-2xl shadow-lg p-4 lg:p-6">
+      <div class="flex flex-col lg:flex-row gap-4 lg:gap-6">
+        <!-- LEFT: Controls -->
+        <aside class="lg:w-1/2 space-y-4">
+          <header>
+            <h1 class="text-xl font-bold">CPR Assistant — ภาษาไทย (ผสานฟอร์ม)</h1>
+            <p class="text-gray-500 text-sm">นับรอบ 2 นาที / เตือนยา / บันทึกช็อก / V/S / สร้าง PDF สรุปและผสานฟอร์ม</p>
+          </header>
+
+          <!-- Case / Patient info -->
+          <section class="bg-pink-50 rounded-xl p-3 space-y-2">
+            <h2 class="font-semibold">ข้อมูลผู้ป่วย / เคส</h2>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="pt_name" class="border rounded-lg px-3 py-2" placeholder="ชื่อ-นามสกุล" />
+              <input id="pt_hn" class="border rounded-lg px-3 py-2" placeholder="HN" />
+              <input id="pt_an" class="border rounded-lg px-3 py-2" placeholder="AN" />
+              <input id="pt_age" type="number" class="border rounded-lg px-3 py-2" placeholder="อายุ" />
+              <input id="pt_room" class="border rounded-lg px-3 py-2" placeholder="ห้อง/เตียง" />
+              <input id="pt_ward" class="border rounded-lg px-3 py-2" placeholder="Ward" />
+            </div>
+            <textarea id="scenario" rows="2" class="w-full border rounded-lg px-3 py-2" placeholder="บรรยายสถานการณ์/หมายเหตุ"></textarea>
+          </section>
+
+          <!-- Timer & Cycle -->
+          <section class="rounded-xl p-3 border space-y-2">
+            <div class="flex items-start justify-between">
+              <div>
+                <div id="status" class="text-lg font-semibold">ยังไม่เริ่ม</div>
+                <div class="text-xs text-gray-500">Cycle 2 นาที (ปรับได้)</div>
+              </div>
+              <div class="text-right">
+                <div id="elapsed" class="bigtime mono">00:00</div>
+                <div class="text-gray-400 text-sm">Elapsed</div>
+              </div>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button id="btn_start" class="btn btn-primary">เริ่ม CPR</button>
+              <button id="btn_pause" class="btn btn-ghost">หยุดชั่วคราว</button>
+              <button id="btn_stop" class="btn btn-warn">ยุติ / สรุป</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 items-end">
+              <label class="text-sm">ความยาวรอบ (วินาที)
+                <input id="cycle_len" type="number" value="120" class="border rounded-lg w-full px-3 py-2 mt-1"/>
+              </label>
+              <label class="text-sm">Metronome BPM
+                <input id="bpm" type="number" value="110" class="border rounded-lg w-full px-3 py-2 mt-1"/>
+              </label>
+              <div class="flex gap-2">
+                <button id="met_on" class="btn btn-ghost w-full">เริ่มจังหวะ</button>
+                <button id="met_off" class="btn btn-ghost w-full">หยุด</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Meds & Defib -->
+          <section class="rounded-xl p-3 border space-y-3">
+            <h2 class="font-semibold">ยา & หัตถการ</h2>
+            <div class="grid grid-cols-3 gap-2 items-end">
+              <label class="text-sm">Epinephrine q (นาที)
+                <input id="epi_interval" type="number" value="3" class="border rounded-lg w-full px-3 py-2 mt-1"/>
+              </label>
+              <button id="btn_epi" class="btn btn-ghost col-span-2">ให้ Epinephrine (1 mg IV/IO)</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn_amio" class="btn btn-ghost">Amiodarone</button>
+              <button id="btn_lido" class="btn btn-ghost">Lidocaine</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 items-end">
+              <label class="text-sm">NaHCO₃ 7.5% ปริมาณ
+                <input id="na_dose" class="border rounded-lg w-full px-3 py-2 mt-1" placeholder="เช่น 50 mL / 1 mEq/kg"/>
+              </label>
+              <button id="btn_nahco3" class="btn btn-ghost col-span-2">ให้ NaHCO₃ 7.5%</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 items-end">
+              <label class="text-sm">Defibrillation พลังงาน
+                <select id="defib_energy" class="border rounded-lg w-full px-3 py-2 mt-1">
+                  <option value="150">150 J</option>
+                  <option value="300">300 J</option>
+                </select>
+              </label>
+              <button id="btn_defib" class="btn btn-warn col-span-2">ช็อก (Defibrillate)</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 items-end">
+              <input id="rhythm" class="border rounded-lg w-full px-3 py-2" placeholder="บันทึกจังหวะ (VF/PEA/Asystole...)"/>
+              <button id="btn_pulse" class="btn btn-ghost col-span-2">คลำชีพจร / Rhythm check</button>
+            </div>
+          </section>
+
+          <!-- Vitals -->
+          <section class="rounded-xl p-3 border space-y-2">
+            <h2 class="font-semibold">Vitals</h2>
+            <div class="grid grid-cols-5 gap-2">
+              <input id="v_hr" type="number" class="border rounded-lg px-3 py-2" placeholder="HR"/>
+              <input id="v_bp" class="border rounded-lg px-3 py-2" placeholder="BP 120/80"/>
+              <input id="v_spo2" type="number" class="border rounded-lg px-3 py-2" placeholder="SpO₂ %"/>
+              <input id="v_rr" type="number" class="border rounded-lg px-3 py-2" placeholder="RR"/>
+              <input id="v_temp" type="number" class="border rounded-lg px-3 py-2" placeholder="Temp °C"/>
+            </div>
+            <div class="flex gap-2">
+              <button id="btn_vitals" class="btn btn-ghost">บันทึก V/S</button>
+              <button id="btn_say" class="btn btn-ghost">อ่านข้อความเตือน (ไทย)</button>
+              <button id="btn_shutup" class="btn btn-ghost">หยุดเสียง</button>
+            </div>
+          </section>
+
+          <!-- Form template upload -->
+          <section class="rounded-xl p-3 border space-y-2">
+            <h2 class="font-semibold">เทมเพลตฟอร์ม PDF (อัปโหลดถ้ามี)</h2>
+            <input id="pdf_template" type="file" accept="application/pdf" class="block w-full text-sm"/>
+            <p class="text-xs text-gray-500">หากอัปโหลด ระบบจะผสานสรุปเข้ากับเทมเพลต (แนบสรุปเป็นหน้าใหม่ท้ายเอกสาร)</p>
+          </section>
+        </aside>
+
+        <!-- RIGHT: Live status & Log -->
+        <main class="lg:w-1/2 space-y-4">
+          <section class="rounded-xl p-3 border">
+            <div class="flex flex-wrap gap-2">
+              <span id="pill_cycles" class="pill">Cycles: 0</span>
+              <span id="pill_epi" class="pill">Epi next: -</span>
+              <span id="pill_shock" class="pill">Shocks: 0</span>
+            </div>
+            <div class="mt-3">
+              <label class="text-sm font-semibold">Event Log</label>
+              <div id="log" class="mt-2 h-80 overflow-auto bg-gray-50 rounded-lg p-2 text-sm"></div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button id="btn_copy" class="btn btn-ghost">คัดลอกสรุป</button>
+              <button id="btn_csv" class="btn btn-ghost">ดาวน์โหลด CSV</button>
+              <button id="btn_pdf" class="btn btn-primary">สร้าง PDF สรุป</button>
+              <button id="btn_clear" class="btn btn-ghost">ล้างข้อมูล</button>
+            </div>
+          </section>
+
+          <section class="rounded-xl p-3 border text-xs text-gray-600">
+            <h3 class="font-semibold">หมายเหตุด้านความปลอดภัย</h3>
+            <ul class="list-disc pl-4 mt-1 space-y-1">
+              <li>เครื่องมือนี้ช่วยสนับสนุนการทำงานในสถานการณ์จริงเท่านั้น การตัดสินใจทางการแพทย์เป็นของทีมผู้เชี่ยวชาญ</li>
+              <li>ยืนยันแนวทางกับ ACLS/AHA และนโยบายหน่วยงานทุกครั้ง</li>
+              <li>PDF สรุปจะออกรูปแบบใกล้เคียงฟอร์ม และแนบหน้าสรุปท้ายเอกสารหากมีเทมเพลต</li>
+            </ul>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ======= Utilities =======
+const $ = (sel) => document.querySelector(sel);
+const nowISO = () => new Date().toISOString();
+function fmtClock(sec){ const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return `${m}:${s}`; }
+function speakTH(text){ try{ window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='th-TH'; u.rate=1.0; const vs=window.speechSynthesis.getVoices(); u.voice = vs.find(v=>v.lang && v.lang.startsWith('th')) || vs[0]; window.speechSynthesis.speak(u);}catch(e){} }
+
+// ======= State =======
+const S = {
+  running:false, timer:null, elapsed:0, cycleLen:120, cycle:0,
+  bpm:110, metro:null, shocks:0,
+  epiInterval:3, nextEpiISO:null,
+  log:[],
+};
+
+function save(){ localStorage.setItem('cpr_form_state', JSON.stringify({
+  S,
+  pt:{
+    name: $('#pt_name').value, hn: $('#pt_hn').value, an: $('#pt_an').value,
+    age: $('#pt_age').value, room: $('#pt_room').value, ward: $('#pt_ward').value,
+    scenario: $('#scenario').value,
+  }
+})); }
+function load(){ try{ const d=JSON.parse(localStorage.getItem('cpr_form_state')); if(d){ Object.assign(S, d.S||{}); const p=d.pt||{}; $('#pt_name').value=p.name||''; $('#pt_hn').value=p.hn||''; $('#pt_an').value=p.an||''; $('#pt_age').value=p.age||''; $('#pt_room').value=p.room||''; $('#pt_ward').value=p.ward||''; $('#scenario').value=p.scenario||''; render(); } }catch(e){} }
+
+// ======= Rendering =======
+function pushLog(type, sub, note, extra={}){
+  S.log.push({time: nowISO(), type, sub, note, cycle:S.cycle, ...extra});
+  render(); save();
+}
+function render(){
+  $('#elapsed').textContent = fmtClock(S.elapsed);
+  $('#status').textContent = S.running? 'CPR กำลังทำงาน' : 'หยุด/พัก';
+  $('#pill_cycles').textContent = `Cycles: ${S.cycle}`;
+  $('#pill_shock').textContent = `Shocks: ${S.shocks}`;
+  $('#pill_epi').textContent = 'Epi next: ' + (S.nextEpiISO? new Date(S.nextEpiISO).toLocaleTimeString() : '-');
+  $('#log').innerHTML = S.log.slice().reverse().map(e=>`<div class="py-0.5"><b>[${e.time.slice(11,19)}]</b> ${e.type}${e.sub? ' / '+e.sub:''} — ${e.note||''}</div>`).join('');
+}
+
+// ======= Timer & Cycle =======
+function tick(){
+  S.elapsed++;
+  if(S.elapsed>0 && S.elapsed % S.cycleLen === 0){
+    S.cycle++;
+    pushLog('CycleCompleted', null, `ครบ ${S.cycleLen} วินาที — คลำชีพจร/วิเคราะห์จังหวะ`);
+    speakTH('ครบสองนาทีแล้ว กรุณาคลำชีพจรและวิเคราะห์จังหวะ');
+    // Epi due
+    const now=new Date(); if(S.nextEpiISO && new Date(S.nextEpiISO) <= now){ pushLog('Epinephrine','due','ถึงเวลาให้ Epi'); speakTH('ถึงเวลายา อิพิเนฟริน'); }
+  }
+  render(); save();
+}
+
+// ======= Metronome =======
+function metronomeStart(){ metronomeStop(); try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const int=Math.round(60000/ S.bpm); let t=false; S.metro={ctx, id:setInterval(()=>{ const o=ctx.createOscillator(); const g=ctx.createGain(); o.type='sine'; o.frequency.value=t?880:440; g.gain.value=0.03; o.connect(g); g.connect(ctx.destination); o.start(); setTimeout(()=>o.stop(),60); t=!t; }, int)}; }catch(e){} }
+function metronomeStop(){ if(S.metro){ clearInterval(S.metro.id); try{S.metro.ctx.close()}catch(e){} S.metro=null; } }
+
+// ======= PDF Generation =======
+async function buildPDF(){
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595.28, 841.89]); // A4 portrait pt
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const drawText = (txt,x,y,size=10)=>{ page.drawText(String(txt||''), { x, y, size, font }); };
+
+  // Header
+  drawText('CPR RECORD SUMMARY (ภาษาไทย) — สรุปหลังจบเหตุการณ์', 40, 800, 12);
+  const pt = { name: $('#pt_name').value, hn: $('#pt_hn').value, an: $('#pt_an').value, age: $('#pt_age').value, room: $('#pt_room').value, ward: $('#pt_ward').value };
+  drawText(`ชื่อผู้ป่วย: ${pt.name||'-'}`, 40, 780);
+  drawText(`HN: ${pt.hn||'-'}   AN: ${pt.an||'-'}   อายุ: ${pt.age||'-'}`, 40, 765);
+  drawText(`ห้อง/เตียง: ${pt.room||'-'}   Ward: ${pt.ward||'-'}`, 40, 750);
+  drawText(`สถานการณ์: ${($('#scenario').value||'-')}`, 40, 735);
+
+  // Stats
+  drawText(`เวลารวม: ${fmtClock(S.elapsed)}   รอบ (Cycles): ${S.cycle}   จำนวนช็อก: ${S.shocks}`, 40, 715);
+  drawText(`Epinephrine next: ${S.nextEpiISO? new Date(S.nextEpiISO).toLocaleTimeString(): '-'}`, 40, 700);
+
+  // Table Header (mirroring official form columns)
+  let y=680; const x0=40; const cols=[
+    {k:'time', w:95, label:'เวลา CPR'},
+    {k:'P', w:60, label:'P (BPM)'},
+    {k:'RR', w:60, label:'RR (BPM)'},
+    {k:'ECG', w:80, label:'ECG'},
+    {k:'BP', w:75, label:'BP (mmHg)'},
+    {k:'DEF', w:55, label:'Defib (J)'},
+    {k:'EPI', w:55, label:'Adrenaline'},
+    {k:'AMIO', w:55, label:'Amiodarone'},
+    {k:'NAH', w:55, label:'7.5% NaHCO3'},
+    {k:'NOTE', w:110, label:'ยา/หัตถการอื่นๆ'}
+  ];
+  // header
+  let x=x0; cols.forEach(c=>{ drawText(c.label,x,y,9); x+=c.w; }); y-=12; page.drawLine({ start:{x:x0,y:y+6}, end:{x:550,y:y+6}, thickness:0.5 });
+
+  // Rows from log → compress to table-like rows
+  const rows = S.log.map(e=>{
+    // Map events to columns
+    const base={ time: e.time.slice(11,19), P:'', RR:'', ECG:'', BP:'', DEF:'', EPI:'', AMIO:'', NAH:'', NOTE:'' };
+    if(e.type==='Vitals'){ const m=/HR:(\S*) BP:(\S*) SpO2:(\S*) RR:(\S*) T:(\S*)/.exec(e.note||''); if(m){ base.P=m[1]||''; base.BP=m[2]||''; base.RR=m[4]||''; } }
+    if(e.type==='Defibrillation'){ base.DEF = (e.note||'').replace('ช็อกที่ ',''); }
+    if(e.type==='Epinephrine'){ base.EPI = 'ให้'; }
+    if(e.sub==='due' && e.type==='Epinephrine'){ base.NOTE='Epi due'; }
+    if(e.type==='Amiodarone'){ base.AMIO = 'ให้'; }
+    if(e.type==='Lidocaine'){ base.NOTE = 'Lidocaine'; }
+    if(e.type==='NaHCO3'){ base.NAH = (e.note||'').replace('ปริมาณ:','').trim(); }
+    if(e.type==='PulseCheck'){ base.NOTE = (e.note||''); }
+    if(e.type==='CycleCompleted'){ base.NOTE = 'ครบ 2 นาที ตรวจชีพจร'; }
+    if(e.type==='DrugOther'){ base.NOTE = (e.note||'ยาอื่น'); }
+    return base;
+  });
+
+  rows.slice(0, 30).forEach(r=>{ x=x0; cols.forEach(c=>{ drawText(r[c.k]||'', x, y, 9); x+=c.w; }); y-=12; if(y<100){ y=680; // new page if needed
+    const p=doc.addPage([595.28, 841.89]); page.index=p.index; // switch
+  }});
+
+  // Summary meds total (simple count)
+  const epiCount = S.log.filter(e=>e.type==='Epinephrine' && e.sub!=='due').length;
+  const amioCount = S.log.filter(e=>e.type==='Amiodarone').length;
+  const lidoCount = S.log.filter(e=>e.type==='Lidocaine').length;
+  const nahList = S.log.filter(e=>e.type==='NaHCO3').map(e=>e.note);
+  drawText(`สรุปยา: Epi ${epiCount} ครั้ง, Amio ${amioCount} ครั้ง, Lido ${lidoCount} ครั้ง, NaHCO3: ${nahList.join(' | ')||'-'}`, 40, 90);
+
+  // Merge with uploaded template (append original pages first, or after) → here we append template first, then summary
+  const file = $('#pdf_template').files[0];
+  if(file){
+    const bytes = await file.arrayBuffer();
+    const tpdf = await PDFDocument.load(bytes);
+    const n = tpdf.getPageCount();
+    const merged = await PDFDocument.create();
+    const tplPages = await merged.copyPages(tpdf, Array.from({length:n}, (_,i)=>i));
+    tplPages.forEach(p=>merged.addPage(p));
+    const sumBytes = await doc.save();
+    const sumPdf = await PDFDocument.load(sumBytes);
+    const sumPages = await merged.copyPages(sumPdf, Array.from({length:sumPdf.getPageCount()},(_,i)=>i));
+    sumPages.forEach(p=>merged.addPage(p));
+    const out = await merged.save();
+    downloadBlob(out, `CPR_Summary_${pt.hn||'HN'}.pdf`, 'application/pdf');
+    return;
+  }
+
+  const out = await doc.save();
+  downloadBlob(out, `CPR_Summary_${pt.hn||'HN'}.pdf`, 'application/pdf');
+}
+
+function downloadBlob(bytes, name, type){
+  const blob = new Blob([bytes], {type});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+// ======= CSV Export =======
+function toCSV(){
+  const rows=[["time","type","sub","note","cycle"]];
+  S.log.forEach(e=>rows.push([e.time,e.type,e.sub||'',e.note||'',e.cycle]));
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='cpr_log.csv'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+// ======= TTS =======
+$('#btn_say').addEventListener('click', ()=>{
+  speakTH(`เวลาที่ผ่านมา ${fmtClock(S.elapsed)} รอบที่ ${S.cycle} จำนวนช็อก ${S.shocks}`);
+});
+$('#btn_shutup').addEventListener('click', ()=>window.speechSynthesis.cancel());
+
+// ======= Event bindings =======
+$('#btn_start').addEventListener('click', ()=>{
+  if(S.running) return; S.cycleLen=parseInt($('#cycle_len').value)||120; S.bpm=parseInt($('#bpm').value)||110; S.epiInterval=parseInt($('#epi_interval').value)||3; S.running=true; S.timer=setInterval(tick,1000); $('#status').textContent='CPR กำลังทำงาน'; pushLog('CPR','start','เริ่ม CPR'); if(!S.nextEpiISO){ const n=new Date(); n.setMinutes(n.getMinutes()+S.epiInterval); S.nextEpiISO=n.toISOString(); } render(); save();
+});
+$('#btn_pause').addEventListener('click', ()=>{ if(!S.running) return; clearInterval(S.timer); S.timer=null; S.running=false; pushLog('CPR','pause','หยุดชั่วคราว'); render(); save(); });
+$('#btn_stop').addEventListener('click', ()=>{ if(S.timer) clearInterval(S.timer); S.timer=null; S.running=false; pushLog('CPR','stop','ยุติ CPR / สรุป'); render(); save(); });
+
+$('#met_on').addEventListener('click', ()=>{ S.bpm=parseInt($('#bpm').value)||110; metronomeStart(); pushLog('Metronome',null,`เริ่ม ${S.bpm} BPM`); });
+$('#met_off').addEventListener('click', ()=>{ metronomeStop(); pushLog('Metronome',null,'หยุด'); });
+
+$('#btn_defib').addEventListener('click', ()=>{ S.shocks++; const E=$('#defib_energy').value; pushLog('Defibrillation',null,`ช็อกที่ ${E} J`); speakTH(`ช็อก ${E} จูล`); render(); save(); });
+
+$('#btn_epi').addEventListener('click', ()=>{ pushLog('Epinephrine',null,'ให้ Epinephrine 1 mg IV/IO'); const n=new Date(); n.setMinutes(n.getMinutes()+ (parseInt($('#epi_interval').value)||3)); S.nextEpiISO=n.toISOString(); speakTH('บันทึกการให้ อิพิเนฟริน แล้ว'); render(); save(); });
+$('#btn_amio').addEventListener('click', ()=>{ pushLog('Amiodarone',null,'ให้ Amiodarone ตาม protocol'); speakTH('บันทึกการให้ อะมิโอดาโรน แล้ว'); });
+$('#btn_lido').addEventListener('click', ()=>{ pushLog('Lidocaine',null,'ให้ Lidocaine ตาม protocol'); speakTH('บันทึกการให้ ไลโดเคน แล้ว'); });
+$('#btn_nahco3').addEventListener('click', ()=>{ const d=$('#na_dose').value||'ไม่ระบุ'; pushLog('NaHCO3',null,`ปริมาณ: ${d}`); speakTH('บันทึกการให้ โซเดียมไบคาร์บอเนต แล้ว'); });
+
+$('#btn_pulse').addEventListener('click', ()=>{ const r=$('#rhythm').value||''; pushLog('PulseCheck',null, r? `คลำชีพจร / จังหวะ ${r}` : 'คลำชีพจร'); speakTH('บันทึกการคลำชีพจร'); });
+
+$('#btn_vitals').addEventListener('click', ()=>{ const note=`HR:${$('#v_hr').value||'-'} BP:${$('#v_bp').value||'-'} SpO2:${$('#v_spo2').value||'-'} RR:${$('#v_rr').value||'-'} T:${$('#v_temp').value||'-'}`; pushLog('Vitals',null,note); });
+
+$('#btn_copy').addEventListener('click', ()=>{ const s=S.log.map(e=>`[${e.time}] ${e.type}${e.sub?'/'+e.sub:''} : ${e.note||''}`).join('\n'); navigator.clipboard.writeText(s).then(()=>alert('คัดลอกแล้ว')); });
+$('#btn_csv').addEventListener('click', toCSV);
+$('#btn_pdf').addEventListener('click', buildPDF);
+$('#btn_clear').addEventListener('click', ()=>{ if(confirm('ล้างทั้งหมดและเริ่มใหม่?')){ localStorage.removeItem('cpr_form_state'); Object.assign(S,{running:false,timer:null,elapsed:0,cycleLen:120,cycle:0,bpm:110,metro:null,shocks:0,epiInterval:3,nextEpiISO:null,log:[]}); render(); } });
+
+// master elapsed runner
+setInterval(()=>{ if(S.running){ tick(); } }, 1000);
+
+// URL param prefill (?text=)
+(function(){ try{ const p=new URLSearchParams(location.search); const t=p.get('text'); if(t) $('#scenario').value=decodeURIComponent(t);}catch(e){} })();
+
+// Load persisted
+load();
+
+// Ensure voices loaded
+if(window.speechSynthesis){ window.speechSynthesis.onvoiceschanged = ()=>{} }
+</script>
+</body>
+</html>
